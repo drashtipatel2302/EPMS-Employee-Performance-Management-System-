@@ -33,17 +33,18 @@ const INP = (extra = {}) => ({
 const labelStyle = { fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: 0.8, display: 'block', marginBottom: 8 };
 const cardStyle  = { background: '#fff', borderRadius: 16, padding: '28px 32px', border: '1.5px solid #f1f5f9', boxShadow: '0 2px 16px rgba(0,0,0,0.04)' };
 
-function SaveBtn({ loading, saved, onClick }) {
+function SaveBtn({ loading, saved, onClick, error }) {
   return (
     <button onClick={onClick} disabled={loading} style={{
       padding: '10px 24px', borderRadius: 10, border: 'none',
-      background: saved ? '#10b981' : `linear-gradient(135deg, ${ACCENT}, #7c3aed)`,
+      background: error ? '#f43f5e' : saved ? '#10b981' : `linear-gradient(135deg, ${ACCENT}, #7c3aed)`,
       color: '#fff', fontWeight: 700, fontSize: 13.5, cursor: loading ? 'wait' : 'pointer',
       display: 'flex', alignItems: 'center', gap: 8, transition: 'all 0.2s',
-      boxShadow: saved ? '0 4px 14px rgba(16,185,129,0.35)' : `0 4px 14px ${ACCENT}44`,
+      boxShadow: error ? '0 4px 14px rgba(244,63,94,0.35)' : saved ? '0 4px 14px rgba(16,185,129,0.35)' : `0 4px 14px ${ACCENT}44`,
     }}>
       {loading
         ? <><span style={{ width:13, height:13, border:'2px solid rgba(255,255,255,0.4)', borderTopColor:'#fff', borderRadius:'50%', display:'inline-block', animation:'spin 0.7s linear infinite' }}/> Saving…</>
+        : error ? '✕ Total must equal 100%'
         : saved ? '✓ Saved Successfully!' : 'Save Changes'}
     </button>
   );
@@ -69,11 +70,20 @@ export default function SystemSettings() {
   const [tab,     setTab]     = useState('hours');
   const [loading, setLoading] = useState(false);
   const [saved,   setSaved]   = useState(false);
+  const [perfError, setPerfError] = useState(false);
 
   const handleSave = () => {
+    if (tab === 'perf') {
+      const total = settings.performance.reduce((s,c) => s + c.weight, 0);
+      if (total !== 100) { setPerfError(true); setTimeout(() => setPerfError(false), 2500); return; }
+    }
+    setPerfError(false);
     setLoading(true);
     setTimeout(() => {
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(settings)); } catch {}
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+        window.dispatchEvent(new Event('storage'));
+      } catch {}
       setLoading(false); setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     }, 800);
@@ -177,7 +187,7 @@ export default function SystemSettings() {
                 <div key={c.id} style={{ display:'flex', alignItems:'center', gap:14, marginBottom:12, padding:'12px 16px', background:'#f8fafc', borderRadius:12, border:'1.5px solid #f1f5f9' }}>
                   <div style={{ width:32, height:32, borderRadius:9, background:`${ACCENT}15`, display:'flex', alignItems:'center', justifyContent:'center', fontWeight:800, fontSize:13, color:ACCENT, flexShrink:0 }}>{i+1}</div>
                   <FocusInput value={c.name} onChange={e=>{ const u=[...settings.performance]; u[i]={...c,name:e.target.value}; setSettings(s=>({...s,performance:u})); }} style={{...INP(),flex:1,background:'#fff'}}/>
-                  <FocusInput type="number" value={c.weight} min={0} max={100} onChange={e=>{ const u=[...settings.performance]; u[i]={...c,weight:Number(e.target.value)}; setSettings(s=>({...s,performance:u})); }} style={{...INP({width:72,textAlign:'center',background:'#fff'})}}/>
+                  <FocusInput type="number" value={c.weight} min={0} max={100} onChange={e=>{ const val = Math.min(100, Math.max(0, Number(e.target.value))); const u=[...settings.performance]; u[i]={...c,weight:val}; setSettings(s=>({...s,performance:u})); setPerfError(false); }} style={{...INP({width:72,textAlign:'center',background:'#fff'})}}/>
                   <span style={{ fontSize:13, color:'#94a3b8', fontWeight:600 }}>%</span>
                   <div style={{ width:120, height:8, background:'#e2e8f0', borderRadius:6, overflow:'hidden', flexShrink:0 }}>
                     <div style={{ height:'100%', width:`${Math.min(c.weight,100)}%`, background:`linear-gradient(90deg,${ACCENT},#7c3aed)`, borderRadius:6, transition:'width 0.3s' }}/>
@@ -192,7 +202,7 @@ export default function SystemSettings() {
                   {settings.performance.reduce((s,c)=>s+c.weight,0)!==100 && <span style={{ fontWeight:400, fontSize:11, marginLeft:8 }}>⚠ Must equal 100%</span>}
                 </span>
               </div>
-              <SaveBtn loading={loading} saved={saved} onClick={handleSave}/>
+              <SaveBtn loading={loading} saved={saved} onClick={handleSave} error={perfError}/>
             </div>
           </div>
         )}

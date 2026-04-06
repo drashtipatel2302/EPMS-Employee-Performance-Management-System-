@@ -14,7 +14,7 @@ const apiFetch = async (path, method = 'GET', body = null) => {
   return data;
 };
 
-const CAT_COLORS = { Event:'#6C63FF', Policy:'#FFB547', System:'#43E8AC', HR:'#FF6584', General:'#8B85FF' };
+const CAT_COLORS = { Event:'#6C63FF', Policy:'#FFB547', System:'#43E8AC', HR:'#FF6584', General:'#8B85FF', EVENT:'#6C63FF', POLICY:'#FFB547', SYSTEM:'#43E8AC', GENERAL:'#8B85FF' };
 const PRI_COLORS = { high:'#FF6584', medium:'#FFB547', low:'#43E8AC' };
 const PRI_BG     = { high:'rgba(255,101,132,0.12)', medium:'rgba(255,181,71,0.12)', low:'rgba(67,232,172,0.12)' };
 const INP        = { width:'100%', padding:'9px 12px', boxSizing:'border-box', background:'var(--bg-elevated)', border:'1px solid var(--border)', borderRadius:8, color:'var(--text-primary)', fontSize:13, outline:'none' };
@@ -114,7 +114,10 @@ export default function Announcements() {
     catch(e) { alert(e.message); }
   };
 
-  const filtered = filter==='all' ? items : items.filter(a=>a.priority===filter||a.category===filter);
+  const filtered = filter==='all' ? items : items.filter(a=>
+    a.priority?.toLowerCase()===filter.toLowerCase() ||
+    a.category?.toLowerCase()===filter.toLowerCase()
+  );
 
   return (
     <Layout>
@@ -155,9 +158,9 @@ export default function Announcements() {
         <div style={{ display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:20 }}>
           {[
             { label:'Total',  value:items.length,                      color:'#6C63FF' },
-            { label:'High Priority', value:items.filter(a=>a.priority==='high').length,   color:'#FF6584' },
-            { label:'Medium', value:items.filter(a=>a.priority==='medium').length, color:'#FFB547' },
-            { label:'Low',    value:items.filter(a=>a.priority==='low').length,    color:'#43E8AC' },
+            { label:'High Priority', value:items.filter(a=>a.priority?.toLowerCase()==='high').length,   color:'#FF6584' },
+            { label:'Medium', value:items.filter(a=>a.priority?.toLowerCase()==='medium').length, color:'#FFB547' },
+            { label:'Low',    value:items.filter(a=>a.priority?.toLowerCase()==='low').length,    color:'#43E8AC' },
           ].map(s=>(
             <div key={s.label} style={{ background:'var(--bg-surface)',border:'1px solid var(--border)',borderRadius:12,padding:'14px 16px',borderLeft:`3px solid ${s.color}` }}>
               <div style={{ fontSize:22,fontWeight:800,color:s.color }}>{s.value}</div>
@@ -180,16 +183,16 @@ export default function Announcements() {
         ) : (
           <div style={{ display:'flex',flexDirection:'column',gap:14 }}>
             {filtered.map(a=>(
-              <Card key={a.id} style={{ borderLeft:`4px solid ${PRI_COLORS[a.priority]||'#6C63FF'}` }}>
+              <Card key={a._id||a.id} style={{ borderLeft:`4px solid ${PRI_COLORS[a.priority?.toLowerCase()]||'#6C63FF'}` }}>
                 <div style={{ display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10 }}>
                   <div style={{ display:'flex',gap:8,alignItems:'center',flexWrap:'wrap' }}>
-                    <span style={{ padding:'3px 10px',borderRadius:20,fontSize:11,fontWeight:700,background:`${CAT_COLORS[a.category]||'#6C63FF'}18`,color:CAT_COLORS[a.category]||'#6C63FF' }}>{a.category}</span>
-                    <span style={{ padding:'3px 10px',borderRadius:20,fontSize:11,fontWeight:700,background:PRI_BG[a.priority],color:PRI_COLORS[a.priority],textTransform:'capitalize' }}>{a.priority} priority</span>
+                    <span style={{ padding:'3px 10px',borderRadius:20,fontSize:11,fontWeight:700,background:`${CAT_COLORS[a.category]||CAT_COLORS[a.category?.charAt(0)+a.category?.slice(1).toLowerCase()]||'#6C63FF'}18`,color:CAT_COLORS[a.category]||CAT_COLORS[a.category?.charAt(0)+a.category?.slice(1).toLowerCase()]||'#6C63FF' }}>{a.category}</span>
+                    <span style={{ padding:'3px 10px',borderRadius:20,fontSize:11,fontWeight:700,background:PRI_BG[a.priority?.toLowerCase()],color:PRI_COLORS[a.priority?.toLowerCase()],textTransform:'capitalize' }}>{a.priority?.toLowerCase()} priority</span>
                   </div>
                   <span style={{ fontSize:11,color:'var(--text-muted)',flexShrink:0 }}>{a.date}</span>
                 </div>
                 <div style={{ fontWeight:700,fontSize:16,color:'var(--text-primary)',marginBottom:8 }}>{a.title}</div>
-                <div style={{ fontSize:13,color:'var(--text-secondary)',lineHeight:1.65,marginBottom:12 }}>{a.body}</div>
+                <div style={{ fontSize:13,color:'var(--text-secondary)',lineHeight:1.65,marginBottom:12 }}>{a.body||a.content}</div>
                 <div style={{ display:'flex',justifyContent:'space-between',alignItems:'center',paddingTop:10,borderTop:'1px solid var(--border)' }}>
                   <span style={{ fontSize:11,color:'var(--text-muted)' }}>Posted by <strong style={{color:'var(--text-secondary)'}}>{a.author}</strong></span>
                   <div style={{ display:'flex',gap:8 }}>
