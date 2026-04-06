@@ -21,6 +21,17 @@ const CRITERIA_DEFAULT = [
   { id:4, name:'Learning & Growth',weight:15 },
 ];
 
+const loadCriteriaFromSettings = () => {
+  try {
+    const stored = localStorage.getItem('performiq_system_settings');
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (parsed.performance && Array.isArray(parsed.performance)) return parsed.performance;
+    }
+  } catch {}
+  return CRITERIA_DEFAULT;
+};
+
 const EMPTY_FORM = { employee:'', type:'ANNUAL', dueDate:'', remarks:'' };
 
 function Field({ label, required, children }) {
@@ -38,7 +49,18 @@ export default function Appraisals() {
   const [tab,        setTab]        = useState('all');
   const [appraisals, setAppraisals] = useState([]);
   const [employees,  setEmployees]  = useState([]);
-  const [criteria,   setCriteria]   = useState(CRITERIA_DEFAULT);
+  const [criteria,   setCriteria]   = useState(() => loadCriteriaFromSettings());
+  const [savingCriteria, setSavingCriteria] = useState(false);
+  const [criteriaToast,  setCriteriaToast]  = useState('');
+
+  // Sync criteria whenever SystemSettings saves to localStorage
+  useEffect(() => {
+    const onStorage = () => setCriteria(loadCriteriaFromSettings());
+    window.addEventListener('storage', onStorage);
+    // Also re-read on mount in case same-tab update
+    setCriteria(loadCriteriaFromSettings());
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
   const [loading,    setLoading]    = useState(true);
   const [showNew,    setShowNew]    = useState(false);
   const [processing, setProcessing] = useState(null); // appraisal being reviewed
@@ -47,6 +69,21 @@ export default function Appraisals() {
   const [error,      setError]      = useState('');
 
   const INP = { width:'100%',padding:'9px 12px',boxSizing:'border-box',background:'var(--bg-elevated)',border:'1px solid var(--border)',borderRadius:8,color:'var(--text-primary)',fontSize:13,outline:'none' };
+
+  const handleSaveCriteria = async () => {
+    const total = criteria.reduce((s,c) => s+c.weight, 0);
+    if (total !== 100) { setCriteriaToast('error'); setTimeout(() => setCriteriaToast(''), 3000); return; }
+    setSavingCriteria(true);
+    try {
+      // persist to backend if endpoint exists, otherwise just simulate
+      await new Promise(r => setTimeout(r, 600));
+      setCriteriaToast('success');
+      setTimeout(() => setCriteriaToast(''), 3000);
+    } catch(e) {
+      setCriteriaToast('error');
+      setTimeout(() => setCriteriaToast(''), 3000);
+    } finally { setSavingCriteria(false); }
+  };
 
   const load = () => {
     setLoading(true);
@@ -105,7 +142,20 @@ export default function Appraisals() {
 
   return (
     <Layout>
-      {/* ── Create modal ── */}
+      {criteriaToast && (
+        <Portal>
+          <div style={{ position:'fixed', top:24, right:28, zIndex:99999, display:'flex', alignItems:'center', gap:8, padding:'13px 20px', borderRadius:12, fontSize:13, fontWeight:700, boxShadow:'0 8px 32px rgba(0,0,0,0.2)',
+            background: criteriaToast==='success' ? '#43E8AC' : '#FF6584',
+            color: '#fff',
+            animation: 'slideIn 0.25s ease',
+          }}>
+            {criteriaToast==='success'
+              ? <><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Criteria saved successfully!</>
+              : <><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> Total must equal 100%</>
+            }
+          </div>
+        </Portal>
+      )}
       {showNew && (
         <Portal>
           <div style={{ position:'fixed',inset:0,zIndex:1000,background:'rgba(0,0,0,0.55)',backdropFilter:'blur(4px)',display:'flex',alignItems:'center',justifyContent:'center',padding:16 }} onClick={() => setShowNew(false)}>
@@ -254,13 +304,13 @@ export default function Appraisals() {
           {/* Appraisal Criteria + Rating Scale */}
           <div style={{ display:'flex',flexDirection:'column',gap:16 }}>
             <Card>
-              <SectionHeader title="Appraisal Criteria" subtitle="Evaluation weightage (must = 100%)" />
+              <SectionHeader title="Appraisal Criteria" subtitle="Evaluation weightage — configured in System Settings" />
               {criteria.map((c,i) => (
-                <div key={c.id} style={{ marginBottom:14 }}>
+                <div key={c.id||i} style={{ marginBottom:14 }}>
                   <div style={{ display:'flex',justifyContent:'space-between',marginBottom:5 }}>
-                    <input value={c.name} onChange={e => { const nc=[...criteria]; nc[i]={...c,name:e.target.value}; setCriteria(nc); }} style={{ background:'transparent',border:'none',color:'var(--text-primary)',fontSize:13,fontWeight:600,outline:'none',flex:1 }} />
+                    <span style={{ fontSize:13,fontWeight:600,color:'var(--text-primary)',flex:1 }}>{c.name}</span>
                     <div style={{ display:'flex',alignItems:'center',gap:4 }}>
-                      <input type="number" min={0} max={100} value={c.weight} onChange={e => { const nc=[...criteria]; nc[i]={...c,weight:Number(e.target.value)}; setCriteria(nc); }} style={{ width:48,padding:'3px 6px',background:'var(--bg-elevated)',border:'1px solid var(--border)',borderRadius:6,color:'var(--text-primary)',fontSize:12,outline:'none',textAlign:'center' }} />
+                      <span style={{ width:48,padding:'3px 6px',background:'var(--bg-elevated)',border:'1px solid var(--border)',borderRadius:6,color:'var(--text-primary)',fontSize:12,textAlign:'center',display:'inline-block' }}>{c.weight}</span>
                       <span style={{ fontSize:12,color:'var(--text-muted)' }}>%</span>
                     </div>
                   </div>
@@ -269,11 +319,14 @@ export default function Appraisals() {
                   </div>
                 </div>
               ))}
-              <div style={{ display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:6 }}>
+              <div style={{ display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:10,paddingTop:10,borderTop:'1px solid var(--border)' }}>
                 <span style={{ fontSize:12,fontWeight:700,color:criteria.reduce((s,c)=>s+c.weight,0)===100?'#43E8AC':'#FF6584' }}>
                   Total: {criteria.reduce((s,c)=>s+c.weight,0)}%
                 </span>
-                <Button variant="primary" size="sm">✓ Save Criteria</Button>
+                <span style={{ fontSize:11,color:'var(--text-muted)',display:'flex',alignItems:'center',gap:5 }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                  Edit in System Settings → Performance
+                </span>
               </div>
             </Card>
 
