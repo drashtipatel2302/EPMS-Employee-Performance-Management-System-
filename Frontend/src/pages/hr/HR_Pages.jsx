@@ -415,74 +415,229 @@ export function Appraisal() {
 
 // ─── Promotions ───────────────────────────────────────────────────────────────
 export function Promotions() {
-  const [promos, setPromos] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [promos,   setPromos]   = useState([]);
+  const [loading,  setLoading]  = useState(true);
+  const [filter,   setFilter]   = useState('ALL');
+  const [modal,    setModal]    = useState({ open: false, promo: null, action: null });
+  const [remarks,  setRemarks]  = useState('');
+  const [saving,   setSaving]   = useState(false);
+  const [toast,    setToast]    = useState({ show: false, msg: '', ok: true });
+
+  const showToast = (msg, ok = true) => {
+    setToast({ show: true, msg, ok });
+    setTimeout(() => setToast(t => ({ ...t, show: false })), 3200);
+  };
 
   const load = () => {
+    setLoading(true);
     fetch('/api/promotions/all', { headers: getAuthHeaders() })
       .then(r => r.json())
-      .then(d => { setPromos(Array.isArray(d) ? d : d.promotions || []); setLoading(false); })
-      .catch(() => setLoading(false));
+      .then(d => { setPromos(Array.isArray(d) ? d : d.promotions || []); })
+      .catch(() => showToast('Failed to load promotions', false))
+      .finally(() => setLoading(false));
   };
 
   useEffect(() => { load(); }, []);
 
-  const reviewPromotion = async (id, status) => {
+  const openModal = (promo, action) => { setRemarks(''); setModal({ open: true, promo, action }); };
+  const closeModal = () => setModal({ open: false, promo: null, action: null });
+
+  const confirmReview = async () => {
+    if (!modal.promo) return;
+    if (modal.action === 'REJECTED' && !remarks.trim()) {
+      showToast('Please provide a reason for rejection', false); return;
+    }
+    setSaving(true);
     try {
-      await fetch(`/api/promotions/${id}/review`, {
-        method: 'PUT', headers: getAuthHeaders(), body: JSON.stringify({ status }),
+      const res = await fetch(`/api/promotions/${modal.promo._id}/review`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ status: modal.action, hrRemarks: remarks.trim() || undefined }),
       });
+      if (!res.ok) throw new Error();
+      showToast(modal.action === 'APPROVED' ? '✅ Promotion approved & employee notified!' : '❌ Promotion declined.');
+      closeModal();
       load();
-    } catch {}
+    } catch {
+      showToast('Action failed. Please try again.', false);
+    } finally { setSaving(false); }
   };
+
+  const TYPE_PILL = {
+    PROMOTION: { bg: 'rgba(108,99,255,0.12)', color: '#6C63FF', label: 'Promotion' },
+    INCREMENT:  { bg: 'rgba(67,232,172,0.12)', color: '#10b981', label: 'Increment' },
+    BOTH:       { bg: 'rgba(255,181,71,0.12)',  color: '#f59e0b', label: 'Promo + Inc' },
+  };
+  const STATUS_STYLE = {
+    PENDING:  { bg: 'rgba(245,158,11,0.1)',  color: '#f59e0b',  label: '⏳ Pending'  },
+    APPROVED: { bg: 'rgba(16,185,129,0.1)',  color: '#10b981',  label: '✅ Approved' },
+    REJECTED: { bg: 'rgba(239,68,68,0.1)',   color: '#ef4444',  label: '❌ Declined' },
+  };
+
+  const filtered = filter === 'ALL' ? promos : promos.filter(p => p.status === filter);
+  const pendingCount  = promos.filter(p => p.status === 'PENDING').length;
+  const approvedCount = promos.filter(p => p.status === 'APPROVED').length;
 
   if (loading) return <Layout><Loader /></Layout>;
 
   return (
     <Layout>
-      <div style={{ maxWidth: 900 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+      {/* Inline toast */}
+      {toast.show && (
+        <div style={{
+          position: 'fixed', top: 24, right: 24, zIndex: 9999,
+          background: toast.ok ? '#10b981' : '#ef4444',
+          color: '#fff', fontWeight: 600, fontSize: 13,
+          padding: '12px 20px', borderRadius: 12,
+          boxShadow: '0 4px 20px rgba(0,0,0,0.18)',
+          animation: 'fadeInDown 0.25s ease',
+        }}>{toast.msg}</div>
+      )}
+
+      <div style={{ maxWidth: 940 }}>
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
           <div>
-            <h2 style={{ fontWeight: 800, fontSize: 24, color: 'var(--role-color, #f43f5e)', letterSpacing: '-0.5px', margin: 0 }}>Promotions</h2>
-            <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>Manage promotion requests recommended by managers</p>
+            <h2 style={{ fontWeight: 800, fontSize: 24, color: 'var(--role-color, #f43f5e)', letterSpacing: '-0.5px', margin: 0 }}>
+              Promotion Requests
+            </h2>
+            <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4, margin: '4px 0 0' }}>
+              Review and action promotion recommendations from managers
+            </p>
+          </div>
+          {/* Summary pills */}
+          <div style={{ display: 'flex', gap: 10 }}>
+            {[
+              { label: 'Pending Review', count: pendingCount,  bg: 'rgba(245,158,11,0.1)',  color: '#f59e0b' },
+              { label: 'Approved',       count: approvedCount, bg: 'rgba(16,185,129,0.1)',  color: '#10b981' },
+              { label: 'Total',          count: promos.length, bg: 'rgba(108,99,255,0.1)',  color: '#6C63FF' },
+            ].map(s => (
+              <div key={s.label} style={{ background: s.bg, borderRadius: 10, padding: '8px 14px', textAlign: 'center', minWidth: 80 }}>
+                <div style={{ fontWeight: 800, fontSize: 20, color: s.color, lineHeight: 1.1 }}>{s.count}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{s.label}</div>
+              </div>
+            ))}
           </div>
         </div>
 
-        {promos.length === 0 && (
-          <Card style={{ textAlign: 'center', padding: 48 }}>
-            <div style={{ fontSize: 40, marginBottom: 12 }}>🚀</div>
-            <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>No promotion requests yet</div>
-            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>Managers can recommend promotions from their dashboard</div>
+        {/* Filter tabs */}
+        <div style={{ display: 'flex', gap: 6, marginBottom: 20 }}>
+          {['ALL', 'PENDING', 'APPROVED', 'REJECTED'].map(f => (
+            <button key={f} onClick={() => setFilter(f)} style={{
+              padding: '6px 16px', borderRadius: 8, border: 'none', cursor: 'pointer',
+              fontSize: 12, fontWeight: 600, transition: 'all 0.15s',
+              background: filter === f ? 'var(--role-color, #f43f5e)' : 'var(--card-bg, #f1f5f9)',
+              color: filter === f ? '#fff' : 'var(--text-muted)',
+            }}>
+              {f === 'ALL' ? `All (${promos.length})` : `${f.charAt(0) + f.slice(1).toLowerCase()} (${promos.filter(p => p.status === f).length})`}
+            </button>
+          ))}
+        </div>
+
+        {/* Empty state */}
+        {filtered.length === 0 && (
+          <Card style={{ textAlign: 'center', padding: 56 }}>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
+              <div style={{ width: 64, height: 64, borderRadius: 18, background: 'rgba(108,99,255,0.1)', border: '1.5px solid rgba(108,99,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6C63FF' }}>
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="17 11 12 6 7 11"/><polyline points="17 18 12 13 7 18"/>
+                </svg>
+              </div>
+            </div>
+            <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--text-primary)' }}>
+              {filter === 'ALL' ? 'No promotion requests yet' : `No ${filter.toLowerCase()} requests`}
+            </div>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 6 }}>
+              {filter === 'ALL' ? 'Managers can submit promotion recommendations from their dashboard.' : 'Switch to All to see all requests.'}
+            </div>
           </Card>
         )}
 
+        {/* Promotion cards */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {promos.map(p => {
-            const empName = p.employee?.name || p.employee || '?';
-            const initials = empName.split(' ').map(n => n[0]).join('');
+          {filtered.map(p => {
+            const empName  = p.employee?.name || '?';
+            const initials = empName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+            const typeStyle   = TYPE_PILL[p.type]   || TYPE_PILL.PROMOTION;
+            const statusStyle = STATUS_STYLE[p.status] || STATUS_STYLE.PENDING;
+            const submittedDate = p.createdAt ? new Date(p.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+            const managerName  = p.recommendedBy?.name || '—';
+
             return (
-              <Card key={p._id} style={{ display: 'flex', gap: 20, alignItems: 'center' }}>
-                <div style={{ width: 50, height: 50, borderRadius: 14, flexShrink: 0, background: 'linear-gradient(135deg, rgba(108,99,255,0.25), rgba(67,232,172,0.15))', border: '1px solid rgba(108,99,255,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-body)', fontWeight: 400, fontSize: 16, color: '#6C63FF' }}>
-                  {initials}
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontFamily: 'var(--font-body)', fontWeight: 500, fontSize: 15, color: 'var(--text-primary)', marginBottom: 4 }}>{empName}</div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text-secondary)' }}>
-                    <span>{p.currentDesignation}</span><span style={{ color: '#6C63FF' }}>→</span>
-                    <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{p.proposedDesignation}</span>
+              <Card key={p._id} style={{ padding: '20px 24px' }}>
+                {/* Top row */}
+                <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+                  {/* Avatar */}
+                  <div style={{
+                    width: 48, height: 48, borderRadius: 13, flexShrink: 0,
+                    background: 'linear-gradient(135deg, rgba(108,99,255,0.2), rgba(67,232,172,0.15))',
+                    border: '1.5px solid rgba(108,99,255,0.25)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontWeight: 700, fontSize: 16, color: '#6C63FF',
+                  }}>{initials}</div>
+
+                  {/* Main info */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 6 }}>
+                      <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--text-primary)' }}>{empName}</span>
+                      <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: typeStyle.bg, color: typeStyle.color }}>{typeStyle.label}</span>
+                      <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: statusStyle.bg, color: statusStyle.color }}>{statusStyle.label}</span>
+                    </div>
+
+                    {/* Role change */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, marginBottom: 6 }}>
+                      <span style={{ color: 'var(--text-secondary)', background: 'var(--card-bg,#f1f5f9)', padding: '3px 10px', borderRadius: 6 }}>{p.currentDesignation || '—'}</span>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6C63FF" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                      <span style={{ color: 'var(--text-primary)', fontWeight: 600, background: 'rgba(108,99,255,0.08)', padding: '3px 10px', borderRadius: 6 }}>{p.proposedDesignation || '—'}</span>
+                      {p.incrementPercent > 0 && (
+                        <span style={{ background: 'rgba(67,232,172,0.12)', color: '#10b981', fontWeight: 700, fontSize: 12, padding: '3px 10px', borderRadius: 6 }}>
+                          +{p.incrementPercent}% salary
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Justification */}
+                    <div style={{ fontSize: 12.5, color: 'var(--text-muted)', lineHeight: 1.5, background: 'var(--card-bg,#f8fafc)', borderRadius: 8, padding: '8px 12px', borderLeft: '3px solid rgba(108,99,255,0.3)' }}>
+                      <span style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>Justification: </span>
+                      {p.justification}
+                    </div>
+
+                    {/* HR Remarks (if reviewed) */}
+                    {p.hrRemarks && (
+                      <div style={{ fontSize: 12.5, color: 'var(--text-muted)', lineHeight: 1.5, background: p.status === 'APPROVED' ? 'rgba(16,185,129,0.06)' : 'rgba(239,68,68,0.06)', borderRadius: 8, padding: '8px 12px', borderLeft: `3px solid ${p.status === 'APPROVED' ? '#10b981' : '#ef4444'}`, marginTop: 8 }}>
+                        <span style={{ fontWeight: 600, color: p.status === 'APPROVED' ? '#10b981' : '#ef4444' }}>HR Remarks: </span>
+                        {p.hrRemarks}
+                      </div>
+                    )}
                   </div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>{p.justification}</div>
-                </div>
-                <div style={{ textAlign: 'center', minWidth: 100 }}>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Type</div>
-                  <div style={{ fontWeight: 600, fontSize: 13 }}>{p.type}</div>
-                  {p.incrementPercent > 0 && <div style={{ color: '#43E8AC', fontSize: 12 }}>+{p.incrementPercent}%</div>}
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end' }}>
-                  <Badge status={(p.status||'').toLowerCase()} />
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    {p.status === 'PENDING' && <Button variant="success" size="sm" onClick={() => reviewPromotion(p._id, 'APPROVED')}>Approve</Button>}
-                    {p.status === 'PENDING' && <Button variant="danger" size="sm" onClick={() => reviewPromotion(p._id, 'REJECTED')}>Decline</Button>}
+
+                  {/* Right meta + actions */}
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 10, flexShrink: 0 }}>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Recommended by</div>
+                      <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)' }}>{managerName}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{submittedDate}</div>
+                    </div>
+                    {p.status === 'PENDING' && (
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button onClick={() => openModal(p, 'APPROVED')} style={{
+                          padding: '7px 16px', borderRadius: 8, border: 'none', cursor: 'pointer',
+                          background: 'rgba(16,185,129,0.1)', color: '#10b981',
+                          fontWeight: 700, fontSize: 12, transition: 'all 0.15s',
+                        }}
+                          onMouseEnter={e => e.currentTarget.style.background = 'rgba(16,185,129,0.2)'}
+                          onMouseLeave={e => e.currentTarget.style.background = 'rgba(16,185,129,0.1)'}
+                        >✓ Approve</button>
+                        <button onClick={() => openModal(p, 'REJECTED')} style={{
+                          padding: '7px 16px', borderRadius: 8, border: 'none', cursor: 'pointer',
+                          background: 'rgba(239,68,68,0.1)', color: '#ef4444',
+                          fontWeight: 700, fontSize: 12, transition: 'all 0.15s',
+                        }}
+                          onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.2)'}
+                          onMouseLeave={e => e.currentTarget.style.background = 'rgba(239,68,68,0.1)'}
+                        >✕ Decline</button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </Card>
@@ -490,6 +645,95 @@ export function Promotions() {
           })}
         </div>
       </div>
+
+      {/* Review Modal */}
+      {modal.open && modal.promo && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 1000,
+          background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+        }} onClick={closeModal}>
+          <div style={{
+            background: 'var(--bg, #fff)', borderRadius: 20, padding: 32,
+            width: '100%', maxWidth: 500, boxShadow: '0 24px 60px rgba(0,0,0,0.2)',
+          }} onClick={e => e.stopPropagation()}>
+            {/* Modal header */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 24 }}>
+              <div style={{
+                width: 44, height: 44, borderRadius: 12,
+                background: modal.action === 'APPROVED' ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 20,
+              }}>{modal.action === 'APPROVED' ? '✅' : '❌'}</div>
+              <div>
+                <div style={{ fontWeight: 800, fontSize: 17, color: 'var(--text-primary)' }}>
+                  {modal.action === 'APPROVED' ? 'Approve Promotion' : 'Decline Promotion'}
+                </div>
+                <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>
+                  for <strong>{modal.promo.employee?.name}</strong>
+                </div>
+              </div>
+            </div>
+
+            {/* Summary */}
+            <div style={{ background: 'var(--card-bg, #f8fafc)', borderRadius: 12, padding: '14px 16px', marginBottom: 20 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+                <span style={{ color: 'var(--text-secondary)' }}>{modal.promo.currentDesignation}</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6C63FF" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{modal.promo.proposedDesignation || modal.promo.currentDesignation}</span>
+                {modal.promo.incrementPercent > 0 && <span style={{ color: '#10b981', fontWeight: 700 }}>+{modal.promo.incrementPercent}%</span>}
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>
+                Recommended by {modal.promo.recommendedBy?.name} • {modal.promo.type}
+              </div>
+            </div>
+
+            {/* HR Remarks textarea */}
+            <div style={{ marginBottom: 22 }}>
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>
+                HR Remarks {modal.action === 'REJECTED' && <span style={{ color: '#ef4444' }}>*</span>}
+                <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--text-muted)', marginLeft: 6 }}>
+                  {modal.action === 'APPROVED' ? '(optional — visible to manager & employee)' : '(required — reason for declining)'}
+                </span>
+              </label>
+              <textarea
+                value={remarks}
+                onChange={e => setRemarks(e.target.value)}
+                rows={3}
+                placeholder={modal.action === 'APPROVED'
+                  ? 'e.g. Approved effective next quarter. Excellent performance record.'
+                  : 'e.g. Promotion deferred pending completion of current project cycle.'}
+                style={{
+                  width: '100%', padding: '12px 14px', borderRadius: 10, boxSizing: 'border-box',
+                  border: '1.5px solid var(--border-color, #e2e8f0)', fontSize: 13,
+                  color: 'var(--text-primary)', resize: 'vertical', outline: 'none',
+                  fontFamily: 'inherit', lineHeight: 1.6, background: 'var(--bg, #fff)',
+                  transition: 'border-color 0.15s',
+                }}
+                onFocus={e => e.target.style.borderColor = modal.action === 'APPROVED' ? '#10b981' : '#ef4444'}
+                onBlur={e => e.target.style.borderColor = 'var(--border-color, #e2e8f0)'}
+              />
+            </div>
+
+            {/* Action buttons */}
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button onClick={closeModal} disabled={saving} style={{
+                padding: '10px 20px', borderRadius: 10, border: '1.5px solid var(--border-color, #e2e8f0)',
+                background: 'transparent', color: 'var(--text-secondary)', fontWeight: 600,
+                fontSize: 13, cursor: 'pointer',
+              }}>Cancel</button>
+              <button onClick={confirmReview} disabled={saving} style={{
+                padding: '10px 24px', borderRadius: 10, border: 'none',
+                background: modal.action === 'APPROVED' ? '#10b981' : '#ef4444',
+                color: '#fff', fontWeight: 700, fontSize: 13, cursor: saving ? 'not-allowed' : 'pointer',
+                opacity: saving ? 0.7 : 1,
+              }}>
+                {saving ? 'Processing...' : modal.action === 'APPROVED' ? '✓ Confirm Approval' : '✕ Confirm Decline'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 }
