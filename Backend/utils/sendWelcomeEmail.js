@@ -117,7 +117,7 @@ Welcome<br/><span style="color:#c9a84c;">Aboard.</span>
 <tr>
 <td style="padding:32px 32px 28px;">
 <div style="font-size:10px;letter-spacing:2px;color:rgba(255,255,255,0.3);text-transform:uppercase;margin-bottom:6px;">Portal URL</div>
-<div style="font-size:13px;color:#c9a84c;font-weight:500;font-family:'Courier New',monospace;margin-bottom:24px;">http://localhost:5173</div>
+<div style="font-size:13px;color:#c9a84c;font-weight:500;font-family:'Courier New',monospace;margin-bottom:24px;">http://epms-employee-performance-management.vercel.app</div>
 <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:1px solid rgba(255,255,255,0.07);padding-top:24px;">
 <tr>
 <td width="50%" style="padding-right:16px;vertical-align:top;">
@@ -190,7 +190,7 @@ Role         : ${role || "EMPLOYEE"}
 Joining Date : ${formattedDate}
 
 LOGIN CREDENTIALS
-Portal URL   : http://localhost:5173
+Portal URL   : http://epms-employee-performance-management.vercel.app
 Email        : ${email}
 Password     : ${password}
 
