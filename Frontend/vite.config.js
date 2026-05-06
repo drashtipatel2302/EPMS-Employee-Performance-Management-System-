@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
+  assetsInclude: ['**/*.mp4'],   // ← THIS is the fix — tells Vite to handle .mp4 files
   server: {
     proxy: {
       '/api': {
@@ -12,7 +13,6 @@ export default defineConfig({
     },
   },
   esbuild: {
-    // This tells Vite to treat .js files as JSX too (fallback fix)
     loader: 'jsx',
     include: /src\/.*\.[jt]sx?$/,
   },
