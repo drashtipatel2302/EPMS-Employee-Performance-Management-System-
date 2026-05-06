@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import teamPhoto from '../../assets/teamPhoto.js';
+import loginVideo from '../../assets/login-bg.mp4';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
@@ -176,15 +176,7 @@ export default function Login() {
         }}>
 
           {/* Team photo filling entire panel */}
-          <img
-            src={teamPhoto}
-            alt="Team collaboration"
-            style={{
-              position: 'absolute', inset: 0,
-              width: '100%', height: '100%',
-              objectFit: 'cover', objectPosition: 'center top',
-            }}
-          />
+          <video autoPlay muted loop playsInline style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}><source src={loginVideo} type="video/mp4" /></video>
 
           {/* Gradient overlay — dark top for logo, lighter bottom for chips */}
           <div style={{
@@ -406,3 +398,5 @@ export default function Login() {
     </>
   );
 }
+
+
